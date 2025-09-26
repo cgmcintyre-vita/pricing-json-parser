@@ -2,7 +2,7 @@ from SAPCCReport import SAPCCExportReport
 from enum import Enum
 from dataclasses import dataclass
 from decimal import Decimal
-from pydantic import BaseModel, model_validator, RootModel, Field
+from pydantic import BaseModel, model_validator, RootModel, Field, ConfigDict
 from typing import Self, Optional
 
 class Country(Enum):
@@ -20,6 +20,9 @@ class ProductPricing(RootModel[dict[str, PriceInfo]]):
 
 @dataclass(slots=True)
 class CountryPrice:
+    '''
+    Contains the pricing from the file
+    '''
     sku:str
     price: Optional[Decimal]
     sale_price: Optional[Decimal]
@@ -32,6 +35,7 @@ class WrongSKUError(ValueError):
     ...
 
 class ItemPrice(BaseModel):
+    model_config = ConfigDict(frozen=True)
     sku:str
     prices:dict[Country, CountryPrice]
 
@@ -43,8 +47,36 @@ class ItemPrice(BaseModel):
         if len(self.prices) != len(Country):
             raise MissingCountryError(f"Missing price for {self.sku}: {self.prices}")
         return self
+    
+    def _price_or_zero(self, price:Optional[Decimal]) -> str:
+        ''' returns "0" if an optional price is None, else returns str of the price'''
+        return str(price) if price else "0"
         
+    @property
+    def output_str_value(self) -> list[str]:
+        ''' 
+        returns the string values of the prices in the following order:
+
+        "SKU", "US Price", "US Sale Price", "CA Price", "CA Sale Price"
+        '''
+
+        return [
+            self.sku,
+            self._price_or_zero(self.prices[Country.US].price),
+            self._price_or_zero(self.prices[Country.US].sale_price),
+            self._price_or_zero(self.prices[Country.CA].price),
+            self._price_or_zero(self.prices[Country.CA].sale_price)
+        ]
 class PricingFile(SAPCCExportReport):
+    '''
+    Product sheet exported from SAP CC that has the following columns, in order:
+    Catalog version*^
+    Name[en]
+    Price in Json
+    Product ID*^
+    
+    As with other SAP CX reports, the data should start on line 4'''
+
     CATALOG_COL = 1
     NAME_COL = 2
     JSON_PRICE_COL = 3
@@ -65,6 +97,17 @@ class PricingFile(SAPCCExportReport):
 
             
 class AMERPricingFile(PricingFile):
+    '''
+    Product sheet exported from SAP CC that has the following columns, in order:
+    Catalog version*^
+    Name[en]
+    Price in Json
+    Product ID*^
+    
+    As with other SAP CX reports, the data should start on line 4
+
+    AMER specific implementation. 
+    '''
 
     def get_prices(self) -> list[ItemPrice]:
         item_prices:list[ItemPrice] = []
