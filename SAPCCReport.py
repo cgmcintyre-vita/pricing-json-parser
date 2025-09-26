@@ -3,7 +3,6 @@ from openpyxl.worksheet.worksheet import Worksheet
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 ''' An absctract class to represent a SAP CC Excel export report'''
 PRIMARY_SHEETNAME:str = "CommerceProduct"
