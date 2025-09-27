@@ -1,7 +1,7 @@
 from SAPCCReport import SAPCCExportReport
 from enum import Enum
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pydantic import BaseModel, model_validator, RootModel, Field, ConfigDict, field_validator
 from typing import Self, Optional
 from pydantic_core import ValidationError
@@ -13,6 +13,18 @@ class Country(Enum):
 
 
 class PriceInfo(BaseModel):
+    '''
+    Represents pricing information for a product in a specific region.
+    
+    Handles both regular and sale pricing with automatic validation and 
+    precision control for monetary values. Empty strings in source data
+    are automatically converted to None for missing pricing.
+    
+    Attributes:
+        salePrice: The discounted price, None if no sale price available
+        price: The regular/list price, None if no pricing available
+        
+    '''
     salePrice: Optional[Decimal] = Field(default = None, decimal_places=2)
     price:Optional[Decimal] = Field(default = None, decimal_places=2)
 
@@ -23,8 +35,60 @@ class PriceInfo(BaseModel):
             return None
         else:
             return v
+        
+    def discount_percentage(self) -> Optional[Decimal]:
+        """
+        Calculate the discount percentage from regular price to sale price.
+        
+        Returns:
+            Decimal rounded to 2 decimal places, or None if pricing unavailable
+        """
+        if self.salePrice is None or self.price is None or self.price == 0:
+            return None
+        discount = (1 - self.salePrice / self.price) * 100
+        return discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    
+    def savings_amount(self) -> Optional[Decimal]:
+        """
+        Calculate the absolute savings amount (regular price - sale price).
+        
+        Returns:
+            Decimal amount saved, or None if pricing unavailable
+        """
+        if self.salePrice is None or self.price is None:
+            return None
+        return self.price - self.salePrice
+    
+    def has_pricing(self) -> bool:
+        """
+        Check if both regular and sale pricing are available.
+        
+        Returns:
+            True if both prices are set, False otherwise
+        """
+        return self.salePrice is not None and self.price is not None
 
 class ProductPricing(RootModel[dict[str, PriceInfo]]):
+    '''
+    Container for product pricing across multiple countries/regions.
+    
+    Parses JSON data where country codes are keys and pricing objects are values.
+    Handles missing or empty pricing data gracefully by setting values to None.
+    
+    The root attribute contains a dictionary mapping country codes to PriceInfo objects.
+    
+    Example:
+        >>> json_data = '{"us":{"salePrice":"99.50","price":"129.99"},"ca":{"salePrice":"","price":""}}'
+        >>> pricing = ProductPricing.model_validate_json(json_data)
+        >>> pricing.root['us'].discount_percentage()
+        Decimal('23.46')
+        >>> pricing.root['ca'].has_pricing()
+        False
+        
+    Note:
+        Access pricing data via .root['country_code'] since this uses RootModel.
+        Countries with empty pricing strings will have None values for prices.
+    '''
     pass
 
 @dataclass(slots=True)
