@@ -6,13 +6,18 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 
 def print_header(output_sheet:Worksheet):
+    '''
+    Prints the column headers to the first row of the sheet
+    '''
     header_items = ["SKU", "US Price", "US Sale Price", "CA Price", "CA Sale Price"]
     for col_num, header in enumerate(header_items, start=1):
         output_sheet.cell(row=1, column=col_num, value=header)
-def print_item_price(output_sheet:Worksheet, ip:ItemPrice):
+def append_item_price(output_sheet:Worksheet, ip:ItemPrice):
+    '''Prints an item price to the sheet '''
     output_sheet.append(ip.output_str_value)
 
 def print_prices(input_path:Path, output_path:Path):
+    ''' Takes a path to a price export from SAP CC, parses it, and creates a new workbook with the data'''
     print("Printing prices")
     input_file = SAPCCReportFile(input_path, pyxl.load_workbook(input_path))
     
@@ -27,7 +32,7 @@ def print_prices(input_path:Path, output_path:Path):
         print_header(ws)
 
         for price in prices:
-            print_item_price(ws, price)
+            append_item_price(ws, price)
     else:
         raise TypeError("Received wrong type of workbook")
     
